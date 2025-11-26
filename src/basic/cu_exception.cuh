@@ -16,3 +16,5 @@ namespace gf::basic::cu
 
     void check(cudaError_t err, std::source_location loc = std::source_location::current());
 }
+
+#define CU_CHECK(err) gf::basic::cu::check(err, std::source_location::current())

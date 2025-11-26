@@ -1,0 +1,1 @@
+cmake -B ./build -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DCMAKE_CXX_COMPILER=/101045/xusj/.local/envs/GSYFluid/bin/g++ -DCMAKE_CUDA_HOST_COMPILER=/101045/xusj/.local/envs/GSYFluid/bin/g++ -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CUDA_ARCHITECTURES=90

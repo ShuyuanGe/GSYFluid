@@ -1,1 +1,2 @@
 add_subdirectory(single_dev)
+add_subdirectory(multi_dev)

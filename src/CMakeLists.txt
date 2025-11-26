@@ -6,3 +6,6 @@ add_subdirectory(simulator)
 
 add_executable(main main.cpp)
 target_link_libraries(main PRIVATE simulator_single_dev)
+
+add_executable(multi_dev_main multi_dev_main.cpp)
+target_link_libraries(multi_dev_main PRIVATE simulator_multi_dev)

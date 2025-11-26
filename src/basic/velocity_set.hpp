@@ -44,6 +44,10 @@ namespace gf::basic
                 {
                     return _getOmegaArr()[DIR];
                 }
+
+                static consteval std::array<i32, NDIR> getDxArr() { return _getDxArr(); }
+                static consteval std::array<i32, NDIR> getDyArr() { return _getDyArr(); }
+                static consteval std::array<i32, NDIR> getDzArr() { return _getDzArr(); }
         };
 
         template<>
