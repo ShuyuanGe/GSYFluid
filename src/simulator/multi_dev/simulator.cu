@@ -7,11 +7,11 @@
 #include "kernel.cuh"
 #include "logger.hpp"
 #include "simulator.hpp"
+#include <thrust/fill.h>
 #include <cuda_runtime.h>
 #include "velocity_set.hpp"
 #include "cu_exception.cuh"
-
-
+#include <thrust/execution_policy.h>
 
 namespace gf::simulator::multi_dev
 {
@@ -161,7 +161,40 @@ namespace gf::simulator::multi_dev
             CU_CHECK(cudaEventCreate(&singleDevData.end));
 
             LOG_INFO(logger, "Allocate device memory successfully!");
+
+            barrier.arrive_and_wait();
+
+            InitKernelParam<27> param;
+            void *kernelArgs[1] = {nullptr};
+            param.devDim = _data->_devDim;
+            param.devIdx.x = devIdxX;
+            param.devIdx.y = devIdxY;
+            param.devIdx.z = devIdxZ;
+            param.flagBuf = singleDevData.flagBuf;
+            param.rhoBuf  = singleDevData.rhoBuf;
+            param.vxBuf   = singleDevData.vxBuf;
+            param.vyBuf   = singleDevData.vyBuf;
+            param.vzBuf   = singleDevData.vzBuf;
+            param.srcDDFBuf = singleDevData.ddfBuf0;
+            param.dstDDFBuf = singleDevData.ddfBuf1;
+            
+            kernelArgs[0] = reinterpret_cast<void*>(&param);
+            CU_CHECK(
+                cudaLaunchKernel(
+                    (const void*)&D3Q27BGKInitKernel, 
+                    _data->getGridDim(), 
+                    _data->getBlockDim(), 
+                    std::begin(kernelArgs), 
+                    0, 
+                    singleDevData.stream
+                )
+            );
+
+            CU_CHECK(cudaStreamSynchronize(singleDevData.stream));
+
+            LOG_INFO(logger, "Set device data successfully!");
         };
+
 
         _pool.addTask(initDevData);
         _pool.waitAll();
@@ -209,11 +242,11 @@ namespace gf::simulator::multi_dev
 
             for(std::uint32_t step = _data->_step ; step<stepBnd ; ++step)
             {
-                kernelArgs[0] = ((step%2)==0 ? (void*)&evenParam, (void*)&oddParam);
+                kernelArgs[0] = ((step%2)==0 ? (void*)&evenParam : (void*)&oddParam);
 
                 CU_CHECK(
                     cudaLaunchKernel(
-                        (const void*)D3Q27BGKKernel, 
+                        (const void*)&D3Q27BGKKernel, 
                         _data->getGridDim(), 
                         _data->getBlockDim(), 
                         std::begin(kernelArgs),
@@ -230,10 +263,10 @@ namespace gf::simulator::multi_dev
             CU_CHECK(cudaEventRecord(singleDevData.end, singleDevData.stream));
 
             float ms;
-            CU_CHECK(cudaStreamSynchronize(singleDevData.end));
+            CU_CHECK(cudaEventSynchronize(singleDevData.end));
             CU_CHECK(cudaEventElapsedTime(&ms, singleDevData.start, singleDevData.end));
             const float mlups = (static_cast<float>(_data->getDomainSize())/(1024*1024)) / (ms/1000) * (stepBnd - _data->_step);
-            LOG_INFO(logger, std::format("speed: {:.4} (MLUPS)", mlups));
+            LOG_INFO(logger, std::format("speed: {:.4f} (MLUPS)", mlups));
         };
 
         while(_data->_step < _data->_nStep)

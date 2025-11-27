@@ -40,13 +40,13 @@ namespace gf::basic
         };
 
         _os << std::format(
-            "[{}] [{}] [{}] [{}:{}] message: {}", 
+            "[{}] [{}] [{}] [{}:{}] message: {}\n", 
             getTimeRepr(),
             _name,
             getLogLevelRepr(),
             loc.file_name(), 
             loc.line(), 
             msg
-        ) << std::endl;
+        );
     }
 }

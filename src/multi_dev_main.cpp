@@ -8,6 +8,7 @@ int main(int argc, char** argv)
     {
         using namespace gf::simulator::multi_dev;
         Simulator simulator(argc, argv);
+        simulator.run();
     }
     catch(const std::exception& e)
     {

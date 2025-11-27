@@ -312,14 +312,14 @@ namespace gf::simulator::multi_dev
     __global__ __launch_bounds__(1024) void
     D3Q27BGKKernel(const KernelParam<27> __grid_constant__ param)
     {
-        const int nx = gridDim.x*blockDim.x;
-        const int ny = gridDim.y*blockDim.y;
-        const int nz = gridDim.z*blockDim.z;
-        const int  n = nx*ny*nz;
-        const int  x = blockDim.x*blockIdx.x+threadIdx.x;
-        const int  y = blockDim.y*blockIdx.y+threadIdx.y;
-        const int  z = blockDim.z*blockIdx.z+threadIdx.z;
-        const int  idx = x+nx*(y+ny*z);
+        const std::int32_t nx = gridDim.x*blockDim.x;
+        const std::int32_t ny = gridDim.y*blockDim.y;
+        const std::int32_t nz = gridDim.z*blockDim.z;
+        const std::int32_t  n = nx*ny*nz;
+        const std::int32_t  x = blockDim.x*blockIdx.x+threadIdx.x;
+        const std::int32_t  y = blockDim.y*blockIdx.y+threadIdx.y;
+        const std::int32_t  z = blockDim.z*blockIdx.z+threadIdx.z;
+        const std::int32_t  idx = x+nx*(y+ny*z);
 
         const flag_t flagn = param.flagBuf[idx];
         real_t rhon, vxn, vyn, vzn;
@@ -403,6 +403,65 @@ namespace gf::simulator::multi_dev
             param.vxBuf[idx]  = vxn;
             param.vyBuf[idx]  = vyn;
             param.vzBuf[idx]  = vzn;
+        }
+    }
+
+    __global__ __launch_bounds__(1024) void
+    D3Q27BGKInitKernel(const InitKernelParam<27> __grid_constant__ param)
+    {
+        const std::int32_t nx = gridDim.x*blockDim.x;
+        const std::int32_t ny = gridDim.y*blockDim.y;
+        const std::int32_t nz = gridDim.z*blockDim.z;
+        const std::int32_t x = blockDim.x*blockIdx.x+threadIdx.x;
+        const std::int32_t y = blockDim.y*blockIdx.y+threadIdx.y;
+        const std::int32_t z = blockDim.z*blockIdx.z+threadIdx.z;
+        const std::int32_t n = nx*ny*nz;
+        const std::int32_t idx = x+nx*(y+ny*z);
+
+        flag_t flagn = LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT;
+        real_t rhon = 1;
+        real_t vxn = 0;
+        real_t vyn = 0;
+        real_t vzn = 0;
+        ddf_t fin[27];
+
+        if(
+            (param.devIdx.y==0 and y==0) or                     //front face
+            (param.devIdx.y==param.devDim.y-1 and y==ny-1) or   //back face
+            (param.devIdx.z==0 and z==0) or                     //down face
+            (param.devIdx.z==param.devDim.z-1 and z==nz-1)      //up face
+        )
+        {
+            flagn = REV_LOAD_DDF_BIT | STORE_DDF_BIT;
+        }
+        else if(param.devIdx.x==0 and x==0)
+        {
+            flagn = EQU_DDF_BIT | STORE_DDF_BIT;                //left face
+            vxn = 0.05;
+        }
+        else if(param.devIdx.x==param.devDim.x-1 and x==nx-1)
+        {
+            flagn = EQU_DDF_BIT | STORE_DDF_BIT;                //right face
+        }
+
+        if(x==0 or x==nx-1 or y==0 or y==ny-1 or z==0 or z==nz-1)
+        {
+            flagn |= DEV_BND_BIT;                               //device boundary
+        }
+
+        gf::lbm_core::bgk::calcEqu<27>(rhon, vxn, vyn, vzn, std::begin(fin));
+
+        param.flagBuf[idx] = flagn;
+        param.rhoBuf[idx] = rhon;
+        param.vxBuf[idx] = vxn;
+        param.vyBuf[idx] = vyn;
+        param.vzBuf[idx] = vzn;
+
+        #pragma unroll
+        for(std::uint32_t dir=0 ; dir<27 ; ++dir)
+        {
+            param.srcDDFBuf[dir*n+idx] = fin[dir];
+            param.dstDDFBuf[dir*n+idx] = fin[dir];
         }
     }
 }
