@@ -67,6 +67,7 @@ constexpr flag_t EQU_DDF_BIT        = static_cast<flag_t>(1) << 2;
 constexpr flag_t COLLIDE_BIT        = static_cast<flag_t>(1) << 3;
 constexpr flag_t STORE_DDF_BIT      = static_cast<flag_t>(1) << 4;
 constexpr flag_t CORRECT_BIT        = static_cast<flag_t>(1) << 5;
+constexpr flag_t DEV_BND_BIT        = static_cast<flag_t>(1) << 6;
 
 constexpr flag_t FLUID_FLAG         = LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT;
 constexpr flag_t BOUNCE_BACK_FLAG   = REV_LOAD_DDF_BIT | STORE_DDF_BIT;
