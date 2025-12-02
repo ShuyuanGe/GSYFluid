@@ -8,3 +8,4 @@ set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED 20)
 
 add_subdirectory(src)
+add_subdirectory(example)
