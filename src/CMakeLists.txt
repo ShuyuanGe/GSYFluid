@@ -9,3 +9,6 @@ target_link_libraries(main PRIVATE simulator_single_dev)
 
 add_executable(multi_dev_main multi_dev_main.cpp)
 target_link_libraries(multi_dev_main PRIVATE simulator_multi_dev)
+
+add_executable(single_dev_expt_main single_dev_expt_main.cpp)
+target_link_libraries(single_dev_expt_main PRIVATE single_dev_expt)

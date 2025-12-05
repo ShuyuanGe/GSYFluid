@@ -53,8 +53,8 @@ int main()
 {
     try
     {
-        CU_CHECK(cudaSetDevice(1));
-        constexpr dim3 gridDim  {2,3,13};
+        CU_CHECK(cudaSetDevice(0));
+        constexpr dim3 gridDim  {2,3,19};
         constexpr dim3 blockDim {32,16,2};
         cudaStream_t stream;
         cudaEvent_t start, end;
@@ -81,7 +81,7 @@ int main()
         CU_CHECK(cudaEventSynchronize(end));
         float ms;
         CU_CHECK(cudaEventElapsedTime(&ms, start, end));
-        const float mlups = (static_cast<float>(gridDim.x*gridDim.y*gridDim.z*blockDim.x*blockDim.y*blockDim.z) / (1024*1024)) / (ms / 1000) * nTest;
+        const float mlups = (static_cast<float>(gridDim.x*gridDim.y*gridDim.z*blockDim.x*blockDim.y*blockDim.z) / (1024*1024)) / (ms / 1000);
         printf("speed = %.4f (MLUPS)\n", mlups);
 
         CU_CHECK(cudaEventDestroy(end));
@@ -112,37 +112,36 @@ StreamNNNKernel(const StreamNNNKernelParam __grid_constant__ param)
     ddf_t fn[27];
     std::fill_n(std::begin(fn), 27, std::bit_cast<ddf_t>(glbidx));
 
-    for(std::int32_t i=0 ; i<nTest ; ++i)
-    {
-        gf::simulator::single_dev::mix_block::StreamCore3D<27>::stream(std::begin(fn), blkDDFBuf, param.swapBuf);
-    }
 
-    // check< 0>(fn[ 0], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 1>(fn[ 1], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 2>(fn[ 2], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 3>(fn[ 3], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 4>(fn[ 4], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 5>(fn[ 5], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 6>(fn[ 6], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 7>(fn[ 7], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check< 8>(fn[ 8], glbx, glby, glbz, glbnx, glbny, glbnz);
+    gf::simulator::single_dev::mix_block::StreamCore3D<27>::stream(std::begin(fn), blkDDFBuf, param.swapBuf);
 
-    // check< 9>(fn[ 9], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<10>(fn[10], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<11>(fn[11], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<12>(fn[12], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<14>(fn[14], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<15>(fn[15], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<16>(fn[16], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<17>(fn[17], glbx, glby, glbz, glbnx, glbny, glbnz);
 
-    // check<18>(fn[18], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<19>(fn[19], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<20>(fn[20], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<21>(fn[21], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<22>(fn[22], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<23>(fn[23], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<24>(fn[24], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<25>(fn[25], glbx, glby, glbz, glbnx, glbny, glbnz);
-    // check<26>(fn[26], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 0>(fn[ 0], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 1>(fn[ 1], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 2>(fn[ 2], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 3>(fn[ 3], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 4>(fn[ 4], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 5>(fn[ 5], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 6>(fn[ 6], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 7>(fn[ 7], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check< 8>(fn[ 8], glbx, glby, glbz, glbnx, glbny, glbnz);
+
+    check< 9>(fn[ 9], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<10>(fn[10], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<11>(fn[11], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<12>(fn[12], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<14>(fn[14], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<15>(fn[15], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<16>(fn[16], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<17>(fn[17], glbx, glby, glbz, glbnx, glbny, glbnz);
+
+    check<18>(fn[18], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<19>(fn[19], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<20>(fn[20], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<21>(fn[21], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<22>(fn[22], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<23>(fn[23], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<24>(fn[24], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<25>(fn[25], glbx, glby, glbz, glbnx, glbny, glbnz);
+    check<26>(fn[26], glbx, glby, glbz, glbnx, glbny, glbnz);
 }
