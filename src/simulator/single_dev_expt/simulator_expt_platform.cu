@@ -74,7 +74,7 @@ namespace gf::simulator::single_dev_expt
 
             //If we use halo-blocking method, 
             //the following parameters are valid.
-            std::uint32_t _innerLoop = 0;
+            std::int32_t _innerLoop = 0;
 
             //If we use l2 cache based halo-blocking method, 
             //the following parameters are valid.
@@ -96,8 +96,8 @@ namespace gf::simulator::single_dev_expt
                 if(std::ifstream f (_initStateFolder+"/flag.dat", std::ios::binary) ; f)
                 {
                     std::vector<flag_t> orgFlag (getDomainSize(), 0);
-                    f.read((char*)&orgFlag, orgFlag.size()*sizeof(flag_t));
-                    std::vector<flag_t> blockingFlag (blockingNum * blockingSize);
+                    f.read((char*)orgFlag.data(), orgFlag.size()*sizeof(flag_t));
+                    std::vector<flag_t> blockingFlag (blockingNum * blockingSize, 0);
                     std::int32_t istIdx = 0;
                     for(std::int32_t blkIdxZ=0 ; blkIdxZ<blockingNumDim.z ; ++blkIdxZ)
                     {
@@ -201,8 +201,8 @@ namespace gf::simulator::single_dev_expt
                         gf::lbm_core::bgk::calcEqu<27>(1,0,0,0, std::begin(feq));
                         for(std::int32_t dir=0 ; dir<27 ; ++dir)
                         {
-                            thrust::fill_n(thrust::device_pointer_cast(_srcDDFBuf)+dir*domSize, domSize, feq[dir]);
-                            thrust::fill_n(thrust::device_pointer_cast(_dstDDFBuf)+dir*domSize, domSize, feq[dir]);
+                            thrust::fill_n(thrust::device_pointer_cast(_srcDDFBuf+dir*domSize), domSize, feq[dir]);
+                            thrust::fill_n(thrust::device_pointer_cast(_dstDDFBuf+dir*domSize), domSize, feq[dir]);
                         }
                         break;
                     }
@@ -504,9 +504,9 @@ namespace gf::simulator::single_dev_expt
                         const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                         const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                         const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x), 0);
-                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y), 0);
-                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z), 0);
+                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                         CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingL1L2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, _data->_stream));
                     }

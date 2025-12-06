@@ -26,7 +26,7 @@ namespace gf::simulator::single_dev_expt
         const idx_t glbn = param.glbnx * param.glbny * param.glbnz;
 
         const flag_t flagi = param.blkFlagBuf[blki];
-        real_t rhoi, vxi, vyi, vzi;
+        real_t rhoi = 1, vxi = 0, vyi = 0, vzi = 0;
 
         real_t fni[27];
 
@@ -98,68 +98,68 @@ namespace gf::simulator::single_dev_expt
             fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
         }
 
-        if((flagi & EQU_DDF_BIT)!=0)
-        {
-            rhoi    = param.glbRhoBuf[glbi];
-            vxi     = param.glbVxBuf[glbi];
-            vyi     = param.glbVyBuf[glbi];
-            vzi     = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
-        }
+        // if((flagi & EQU_DDF_BIT)!=0)
+        // {
+        //     rhoi    = param.glbRhoBuf[glbi];
+        //     vxi     = param.glbVxBuf[glbi];
+        //     vyi     = param.glbVyBuf[glbi];
+        //     vzi     = param.glbVzBuf[glbi];
+        //     gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+        // }
 
-        if((flagi & BOUNCE_BACK_BIT)!=0)
-        {
-            std::swap(fni[ 0], fni[26]);
-            std::swap(fni[ 1], fni[25]);
-            std::swap(fni[ 2], fni[24]);
-            std::swap(fni[ 3], fni[23]);
-            std::swap(fni[ 4], fni[22]);
-            std::swap(fni[ 5], fni[21]);
-            std::swap(fni[ 6], fni[20]);
-            std::swap(fni[ 7], fni[19]);
-            std::swap(fni[ 8], fni[18]);
-            std::swap(fni[ 9], fni[17]);
-            std::swap(fni[10], fni[16]);
-            std::swap(fni[11], fni[15]);
-            std::swap(fni[12], fni[14]);
-        }
+        // if((flagi & BOUNCE_BACK_BIT)!=0)
+        // {
+        //     std::swap(fni[ 0], fni[26]);
+        //     std::swap(fni[ 1], fni[25]);
+        //     std::swap(fni[ 2], fni[24]);
+        //     std::swap(fni[ 3], fni[23]);
+        //     std::swap(fni[ 4], fni[22]);
+        //     std::swap(fni[ 5], fni[21]);
+        //     std::swap(fni[ 6], fni[20]);
+        //     std::swap(fni[ 7], fni[19]);
+        //     std::swap(fni[ 8], fni[18]);
+        //     std::swap(fni[ 9], fni[17]);
+        //     std::swap(fni[10], fni[16]);
+        //     std::swap(fni[11], fni[15]);
+        //     std::swap(fni[12], fni[14]);
+        // }
 
-        if((flagi & COLLIDE_BIT)!=0)
-        {
-            gf::lbm_core::bgk::collision<27>(param.invTau, rhoi, vxi, vyi, vzi, std::begin(fni));
-        }
+        // if((flagi & COLLIDE_BIT)!=0)
+        // {
+        //     gf::lbm_core::bgk::collision<27>(param.invTau, rhoi, vxi, vyi, vzi, std::begin(fni));
+        // }
 
         #pragma unroll
         for(idx_t iter=1 ; iter<param.nloop ; ++iter)
         {
             gf::core::L1L2StreamCore::StreamCore3D<27>::stream(std::begin(fni), blkDDFBuf, param.glbSwapDDFBuf);
 
-            if((flagi & EQU_DDF_BIT)!=0)
-            {
-                gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
-            }
+            // if((flagi & EQU_DDF_BIT)!=0)
+            // {
+            //     gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            // }
 
-            if((flagi & BOUNCE_BACK_BIT)!=0)
-            {
-                std::swap(fni[ 0], fni[26]);
-                std::swap(fni[ 1], fni[25]);
-                std::swap(fni[ 2], fni[24]);
-                std::swap(fni[ 3], fni[23]);
-                std::swap(fni[ 4], fni[22]);
-                std::swap(fni[ 5], fni[21]);
-                std::swap(fni[ 6], fni[20]);
-                std::swap(fni[ 7], fni[19]);
-                std::swap(fni[ 8], fni[18]);
-                std::swap(fni[ 9], fni[17]);
-                std::swap(fni[10], fni[16]);
-                std::swap(fni[11], fni[15]);
-                std::swap(fni[12], fni[14]);
-            }
+            // if((flagi & BOUNCE_BACK_BIT)!=0)
+            // {
+            //     std::swap(fni[ 0], fni[26]);
+            //     std::swap(fni[ 1], fni[25]);
+            //     std::swap(fni[ 2], fni[24]);
+            //     std::swap(fni[ 3], fni[23]);
+            //     std::swap(fni[ 4], fni[22]);
+            //     std::swap(fni[ 5], fni[21]);
+            //     std::swap(fni[ 6], fni[20]);
+            //     std::swap(fni[ 7], fni[19]);
+            //     std::swap(fni[ 8], fni[18]);
+            //     std::swap(fni[ 9], fni[17]);
+            //     std::swap(fni[10], fni[16]);
+            //     std::swap(fni[11], fni[15]);
+            //     std::swap(fni[12], fni[14]);
+            // }
 
-            if((flagi & COLLIDE_BIT)!=0)
-            {
-                gf::lbm_core::bgk::collision<27>(param.invTau, rhoi, vxi, vyi, vzi, std::begin(fni));
-            }
+            // if((flagi & COLLIDE_BIT)!=0)
+            // {
+            //     gf::lbm_core::bgk::collision<27>(param.invTau, rhoi, vxi, vyi, vzi, std::begin(fni));
+            // }
         }
 
         //last global store
