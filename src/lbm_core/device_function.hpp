@@ -158,6 +158,9 @@ namespace gf::lbm_core
             template<u32 NDIR>
             HOST_DEV_CONSTEXPR void collision(real_t invTau, real_t& rho, real_t& vx, real_t& vy, real_t& vz, real_t* f);
 
+            template<u32 NDIR>
+            HOST_DEV_CONSTEXPR void collision2(real_t invTau, real_t* f);
+
             template<>
             HOST_DEV_CONSTEXPR void calcEqu<15>(real_t rho, real_t vx, real_t vy, real_t vz, real_t* f)
             {
@@ -668,6 +671,87 @@ namespace gf::lbm_core
                 //x:+,y:+,z:+
                 f[26] = invTau * fma(rhoc, fma(0.5f, fma(v6, v6, c3), v6), rhom1c) + (1._r - invTau) * f[26];
             }
+
+            template<>
+            HOST_DEV_CONSTEXPR void collision2<27>(real_t invTau, real_t* f)
+            {
+                using std::fma;
+                using namespace gf::literal;
+
+                real_t rho_, vx_, vy_, vz_;
+                calcRhoU<27>(rho_, vx_, vy_, vz_, f);
+
+                constexpr real_t W0 = 8._r / 27._r; //center
+                constexpr real_t WS = 2._r / 27._r; //straight
+                constexpr real_t WE = 1._r / 54._r; //edge
+                constexpr real_t WC = 1._r / 216._r;//corner
+
+                const real_t rhom1 = rho_ - 1._r;
+                const real_t c3    = -3._r * (vx_ * vx_ + vy_ * vy_ + vz_ * vz_);
+                vx_ *= 3._r;
+                vy_ *= 3._r;
+                vz_ *= 3._r;
+
+                const real_t v0=vx_+vy_, v1=vx_+vz_, v2=vy_+vz_, v3=vx_-vy_, v4=vx_-vz_, v5=vy_-vz_, v6=vx_+vy_+vz_, v7=vx_+vy_-vz_, v8=vx_-vy_+vz_, v9=vy_-vx_+vz_;
+                const real_t rhos=WS*rho_, rhoe=WE*rho_, rhoc=WC*rho_, rhom1s=WS*rhom1, rhom1e=WE*rhom1, rhom1c=WC*rhom1;
+
+                //x:-,y:-,z:-
+                f[ 0] = invTau * fma(rhoc, fma(0.5_r, fma(v6, v6, c3), -v6), rhom1c) + (1._r - invTau) * f[ 0];
+                //x:0,y:-,z:-
+                f[ 1] = invTau * fma(rhoe, fma(0.5_r, fma(v2, v2, c3), -v2), rhom1e) + (1._r - invTau) * f[ 1];
+                //x:+,y:-,z:-
+                f[ 2] = invTau * fma(rhoc, fma(0.5_r, fma(v9, v9, c3), -v9), rhom1c) + (1._r - invTau) * f[ 2];
+                //x:-,y:0,z:-
+                f[ 3] = invTau * fma(rhoe, fma(0.5_r, fma(v1, v1, c3), -v1), rhom1e) + (1._r - invTau) * f[ 3];
+                //x:0,y:0,z:-
+                f[ 4] = invTau * fma(rhos, fma(0.5_r, fma(vz_, vz_, c3), -vz_), rhom1s) + (1._r - invTau) * f[ 4];
+                //x:+,y:0,z:-
+                f[ 5] = invTau * fma(rhoe, fma(0.5_r, fma(v4, v4, c3), v4), rhom1e) + (1._r - invTau) * f[ 5];
+                //x:-,y:+,z:-
+                f[ 6] = invTau * fma(rhoc, fma(0.5_r, fma(v8, v8, c3), -v8), rhom1c) + (1._r - invTau) * f[ 6];
+                //x:0,y:+,z:-
+                f[ 7] = invTau * fma(rhoe, fma(0.5_r, fma(v5, v5, c3), v5), rhom1e) + (1._r - invTau) * f[ 7];
+                //x:+,y:+,z:-
+                f[ 8] = invTau * fma(rhoc, fma(0.5_r, fma(v7, v7, c3), v7), rhom1c) + (1._r - invTau) * f[ 8];
+
+                //x:-,y:-,z:0
+                f[ 9] = invTau * fma(rhoe, fma(0.5_r, fma(v0, v0, c3), -v0), rhom1e) + (1._r - invTau) * f[ 9];
+                //x:0,y:-,z:0
+                f[10] = invTau * fma(rhos, fma(0.5_r, fma(vy_, vy_, c3), -vy_), rhom1s) + (1._r - invTau) * f[10];
+                //x:+,y:-,z:0
+                f[11] = invTau * fma(rhoe, fma(0.5_r, fma(v3, v3, c3), v3), rhom1e) + (1._r - invTau) * f[11];
+                //x:-,y:0,z:0
+                f[12] = invTau * fma(rhos, fma(0.5_r, fma(vx_, vx_, c3), -vx_), rhom1s) + (1._r - invTau) * f[12];
+                //x:0,y:0,z:0
+                f[13] = invTau * W0*fma(rho_, 0.5_r*c3, rhom1) + (1._r - invTau) * f[13];
+                //x:+,y:0,z:0
+                f[14] = invTau * fma(rhos, fma(0.5_r, fma(vx_, vx_, c3), vx_), rhom1s) + (1._r - invTau) * f[14];
+                //x:-,y:+,z:0
+                f[15] = invTau * fma(rhoe, fma(0.5_r, fma(v3, v3, c3), -v3), rhom1e) + (1._r - invTau) * f[15];
+                //x:0,y:+,z:0
+                f[16] = invTau * fma(rhos, fma(0.5_r, fma(vy_, vy_, c3), vy_), rhom1s) + (1._r - invTau) * f[16];
+                //x:+,y:+,z:0
+                f[17] = invTau * fma(rhoe, fma(0.5_r, fma(v0, v0, c3), v0), rhom1e) + (1._r - invTau) * f[17];
+
+                //x:-,y:-,z:+
+                f[18] = invTau * fma(rhoc, fma(0.5f, fma(v7, v7, c3), -v7), rhom1c) + (1._r - invTau) * f[18];
+                //x:0,y:-,z:+
+                f[19] = invTau * fma(rhoe, fma(0.5f, fma(v5, v5, c3), -v5), rhom1e) + (1._r - invTau) * f[19];
+                //x:+,y:-,z:+
+                f[20] = invTau * fma(rhoc, fma(0.5f, fma(v8, v8, c3), v8), rhom1c) + (1._r - invTau) * f[20];
+                //x:-,y:0,z:+
+                f[21] = invTau * fma(rhoe, fma(0.5f, fma(v4, v4, c3), -v4), rhom1e) + (1._r - invTau) * f[21];
+                //x:0,y:0,z:+
+                f[22] = invTau * fma(rhos, fma(0.5f, fma(vz_, vz_, c3), vz_), rhom1s) + (1._r - invTau) * f[22];
+                //x:+,y:0,z:+
+                f[23] = invTau * fma(rhoe, fma(0.5f, fma(v1, v1, c3), v1), rhom1e) + (1._r - invTau) * f[23];
+                //x:-,y:+,z:+
+                f[24] = invTau * fma(rhoc, fma(0.5f, fma(v9, v9, c3), v9), rhom1c) + (1._r - invTau) * f[24];
+                //x:0,y:+,z:+
+                f[25] = invTau * fma(rhoe, fma(0.5f, fma(v2, v2, c3), v2), rhom1e) + (1._r - invTau)* f[25];
+                //x:+,y:+,z:+
+                f[26] = invTau * fma(rhoc, fma(0.5f, fma(v6, v6, c3), v6), rhom1c) + (1._r - invTau) * f[26];
+            }
         }
 
         template<u32 NDIR>
@@ -688,5 +772,10 @@ namespace gf::lbm_core
             detail::collision<NDIR>(invTau, rhon, vxn, vyn, vzn, fn);
         }
 
+        template<u32 NDIR>
+        HOST_DEV_CONSTEXPR void collision2(real_t invTau, real_t* fn)
+        {
+            detail::collision2<NDIR>(invTau, fn);
+        }
     }
 }

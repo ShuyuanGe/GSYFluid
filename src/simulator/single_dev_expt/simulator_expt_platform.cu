@@ -520,6 +520,18 @@ namespace gf::simulator::single_dev_expt
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
 
+                for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
+                {
+                    const idx_t blkIdxX = blkIdx % blockingNumDim.x;
+                    const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
+                    const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
+                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
+                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingL1L2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                }
+                CU_CHECK(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }
         };

@@ -22,4 +22,5 @@ namespace gf::simulator::single_dev_expt
     };
 
     __global__ void HaloBlockingL1L2D3Q27PullKernel(const HaloBlockingL1L2Param __grid_constant__ param);
+    __global__ void HaloBlockingL1L2D3Q27DumpKernel(const HaloBlockingL1L2Param __grid_constant__ param);
 }
