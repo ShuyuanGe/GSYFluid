@@ -38,8 +38,9 @@ namespace gf::simulator::single_dev_expt
             enum struct OptPolicy
             {
                 NONE,
-                HALO_BLOCKING_L2,
-                HALO_BLOCKING_L1L2
+                HALO_BLOCKING_STATIC_L2,
+                HALO_BLOCKING_L1L2,
+                HALO_BLOCKING_DYNAMIC_L2
             };
 
             enum struct VelSet
@@ -276,7 +277,7 @@ namespace gf::simulator::single_dev_expt
                 const std::uint32_t domSize = getDomainSize();
                 const std::uint32_t q = getQ();
 
-                if(_optPolicy==OptPolicy::HALO_BLOCKING_L2 or _optPolicy==OptPolicy::HALO_BLOCKING_L1L2)
+                if(_optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2 or _optPolicy==OptPolicy::HALO_BLOCKING_L1L2)
                 {
                     initBlockingFlag();
                 }
@@ -288,7 +289,7 @@ namespace gf::simulator::single_dev_expt
                     initDoubleDDFBuf();
                 }
 
-                if(_optPolicy==OptPolicy::HALO_BLOCKING_L2)
+                if(_optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2)
                 {
                     const std::uint32_t blockingSize = getBlockingSize();
                     CU_CHECK(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*q*blockingSize));
@@ -322,7 +323,7 @@ namespace gf::simulator::single_dev_expt
                     CU_CHECK(cudaFree(_swapDDFBuf));
                 }
 
-                if(_optPolicy==OptPolicy::HALO_BLOCKING_L2)
+                if(_optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2)
                 {
                     CU_CHECK(cudaFree(_l2DDFBuf0));
                     CU_CHECK(cudaFree(_l2DDFBuf1));
@@ -536,12 +537,91 @@ namespace gf::simulator::single_dev_expt
             }
         };
 
+        auto haloBlockingStaticL2D3Q27PullRun = [dumpRes, this]()->void
+        {
+            HaloBlockingStaticL2Param param
+            {
+                .invTau = _data->_invTau, 
+                .nloop  = _data->_innerLoop, 
+                .offx = 0, .offy = 0, .offz = 0, 
+                .glbnx = _data->_domDim.x, .glbny = _data->_domDim.y, .glbnz = _data->_domDim.z,
+                .blkFlagBuf = nullptr, 
+                .glbRhoBuf = _data->_rhoBuf, 
+                .glbVxBuf = _data->_vxBuf, 
+                .glbVyBuf = _data->_vyBuf, 
+                .glbVzBuf = _data->_vzBuf, 
+                .glbSrcDDFBuf = _data->_srcDDFBuf, 
+                .glbDstDDFBuf = _data->_dstDDFBuf, 
+                .blkDDFBuf0 = _data->_l2DDFBuf0, 
+                .blkDDFBuf1 = _data->_l2DDFBuf1
+            };
+
+            const dim3 gridDim {_data->_gridDim.x, _data->_gridDim.y, _data->_gridDim.z};
+            const dim3 blockDim {_data->_blockDim.x, _data->_blockDim.y, _data->_blockDim.z};
+            void* kernelArgs[1] = { (void*)&param };
+
+            const auto blockingDim = _data->getBlockingDim();
+            const auto blockingNumDim = _data->getBlockingNumDim();
+            const std::uint32_t blockingNum = blockingNumDim.x * blockingNumDim.y * blockingNumDim.z;
+
+            while(_data->_step < _data->_nStep)
+            {
+                std::uint32_t locStep = 0;
+                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                for( ; locStep<_data->_dStep ; locStep += _data->_innerLoop )
+                {
+                    for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
+                    {
+                        const idx_t blkIdxX = blkIdx % blockingNumDim.x;
+                        const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
+                        const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
+                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                        param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
+                        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    }
+                    std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                }
+                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
+                CU_CHECK(cudaEventSynchronize(_data->_end));
+                float ms;
+                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * locStep;
+                std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
+                _data->_step += locStep;
+
+                for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
+                {
+                    const idx_t blkIdxX = blkIdx % blockingNumDim.x;
+                    const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
+                    const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
+                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
+                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                }
+
+                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                dumpRes();
+            }
+        };
+
         if(
             _data->_streamPolicy==Data::StreamPolicy::PULL_STREAM and
             _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_L1L2
         )
         {
             haloBlockingL1L2D3Q27PullRun();
+        }
+
+        if(
+            _data->_streamPolicy==Data::StreamPolicy::PULL_STREAM and 
+            _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_STATIC_L2
+        )
+        {
+            haloBlockingStaticL2D3Q27PullRun();
         }
     }
 
