@@ -230,6 +230,18 @@ namespace gf::simulator::single_dev_expt
                 std::cout << std::format("Init double ddf buffer successfully.") << std::endl;
             }
 
+            void mapGlobalMem2PersistL2(void* basePtr, std::size_t numBytes)
+            {
+                CU_CHECK(cudaDeviceSetLimit(cudaLimit::cudaLimitPersistingL2CacheSize, numBytes));
+                cudaStreamAttrValue streamAttr;
+                streamAttr.accessPolicyWindow.base_ptr = basePtr;
+                streamAttr.accessPolicyWindow.num_bytes = numBytes;
+                streamAttr.accessPolicyWindow.hitRatio = 1.0;
+                streamAttr.accessPolicyWindow.hitProp = cudaAccessProperty::cudaAccessPropertyPersisting;
+                streamAttr.accessPolicyWindow.missProp = cudaAccessProperty::cudaAccessPropertyStreaming;
+                CU_CHECK(cudaStreamSetAttribute(_stream, cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
+            }
+
         public:
             Data(int argc, char** argv)
             {
@@ -312,6 +324,7 @@ namespace gf::simulator::single_dev_expt
 
                 initRhoU();
 
+
                 if(
                     _streamPolicy==StreamPolicy::PULL_STREAM or
                     (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2) or
@@ -326,12 +339,14 @@ namespace gf::simulator::single_dev_expt
                     const std::uint32_t blockingSize = getBlockingSize();
                     if(_streamPolicy==StreamPolicy::PULL_STREAM)
                     {
-                        CU_CHECK(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*q*blockingSize));
-                        CU_CHECK(cudaMalloc(&_l2DDFBuf1, sizeof(real_t)*q*blockingSize));
+                        CU_CHECK(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*2*q*blockingSize));
+                        _l2DDFBuf1 = _l2DDFBuf0 + q*blockingSize;
+                        mapGlobalMem2PersistL2(reinterpret_cast<void*>(_l2DDFBuf0), sizeof(real_t)*2*q*blockingSize);
                     }
                     else if (_streamPolicy==StreamPolicy::INPLACE_STREAM)
                     {
                         CU_CHECK(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*q*blockingSize));
+                        mapGlobalMem2PersistL2(reinterpret_cast<void*>(_l2DDFBuf0), sizeof(real_t)*q*blockingSize);
                     }
                 }
 
@@ -352,6 +367,7 @@ namespace gf::simulator::single_dev_expt
                             );
                     }
                     CU_CHECK(cudaMalloc(&_swapDDFBuf, swapDDFBufSize*sizeof(real_t)));
+                    mapGlobalMem2PersistL2(reinterpret_cast<void*>(_swapDDFBuf), swapDDFBufSize*sizeof(real_t));
                 }
             }
 
@@ -367,7 +383,6 @@ namespace gf::simulator::single_dev_expt
                     if(_streamPolicy==StreamPolicy::PULL_STREAM)
                     {
                         CU_CHECK(cudaFree(_l2DDFBuf0));
-                        CU_CHECK(cudaFree(_l2DDFBuf1));
                     }
                     else if(_streamPolicy==StreamPolicy::INPLACE_STREAM)
                     {
