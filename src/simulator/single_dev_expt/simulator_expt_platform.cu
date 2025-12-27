@@ -485,7 +485,7 @@ namespace gf::simulator::single_dev_expt
                 };
             }
 
-            std::uint32_t getQ() const noexcept
+            std::uint32_t getQ() const
             {
                 switch(_velSet)
                 {
@@ -517,64 +517,38 @@ namespace gf::simulator::single_dev_expt
     {
         auto dumpRes = [this]()->void
         {
-            std::vector<real_t> buf;
+            // Create dump folder if not exists
+            const auto dumpFolder = std::filesystem::path { _data->_dumpFolder };
+            std::filesystem::create_directories(dumpFolder);
 
-            if(_data->_dumpRho or _data->_dumpVx or _data->_dumpVy or _data->_dumpVz)
-            {
-                buf.resize(_data->getDomainSize(), 0);
-            }
+            if (not (_data->_dumpRho or _data->_dumpVx or _data->_dumpVy or _data->_dumpVz)) return;
 
-            if(_data->_dumpRho)
-            {
-                if(std::ofstream f (_data->_dumpFolder+std::format("/rho_{}.dat", _data->_step), std::ios::binary) ; f)
-                {
-                    CU_CHECK(cudaMemcpy(buf.data(), _data->_rhoBuf, sizeof(real_t)*buf.size(), cudaMemcpyDeviceToHost));
-                    f.write((const char*)buf.data(), sizeof(real_t)*buf.size());
-                }
-                else
-                {
-                    throw std::runtime_error(std::format("Could not open the file: {}/rho_{}.dat", _data->_dumpFolder, _data->_step));
-                }
-            }
+            // Allocate host buffer
+            const auto nbytes = sizeof(real_t) * _data->getDomainSize();
+            auto hostBuf = std::make_unique<char[]>(nbytes);
 
-            if(_data->_dumpVx)
+            auto dumpField = [&](bool enabled, std::string_view prefix, const void *devicePtr) 
             {
-                if(std::ofstream f (_data->_dumpFolder+std::format("/vx_{}.dat", _data->_step), std::ios::binary) ; f)
-                {
-                    CU_CHECK(cudaMemcpy(buf.data(), _data->_vxBuf, sizeof(real_t)*buf.size(), cudaMemcpyDeviceToHost));
-                    f.write((const char*)buf.data(), sizeof(real_t)*buf.size());
-                }
-                else
-                {
-                    throw std::runtime_error(std::format("Could not open the file: {}/vx_{}.dat", _data->_dumpFolder, _data->_step));
-                }
-            }
+                if (!enabled) return;
 
-            if(_data->_dumpVy)
-            {
-                if(std::ofstream f (_data->_dumpFolder+std::format("/vy_{}.dat", _data->_step), std::ios::binary) ; f)
+                const auto filePath = dumpFolder / std::format("{}_{}.dat", prefix, _data->_step);
+                
+                if (std::ofstream f(filePath, std::ios::binary) ; f) 
                 {
-                    CU_CHECK(cudaMemcpy(buf.data(), _data->_vyBuf, sizeof(real_t)*buf.size(), cudaMemcpyDeviceToHost));
-                    f.write((const char*)buf.data(), sizeof(real_t)*buf.size());
-                }
-                else
+                    CU_CHECK(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyDeviceToHost));
+                    f.write(hostBuf.get(), nbytes);
+                } 
+                else 
                 {
-                    throw std::runtime_error(std::format("Could not open the file: {}/vy_{}.dat", _data->_dumpFolder, _data->_step));
+                    throw std::runtime_error(std::format("Could not open the file: {}", filePath.string()));
                 }
-            }
 
-            if(_data->_dumpVz)
-            {
-                if(std::ofstream f (_data->_dumpFolder+std::format("/vz_{}.dat", _data->_step), std::ios::binary) ; f)
-                {
-                    CU_CHECK(cudaMemcpy(buf.data(), _data->_vzBuf, sizeof(real_t)*buf.size(), cudaMemcpyDeviceToHost));
-                    f.write((const char*)buf.data(), sizeof(real_t)*buf.size());
-                }
-                else
-                {
-                    throw std::runtime_error(std::format("Could not open the file: {}/vz_{}.dat", _data->_dumpFolder, _data->_step));
-                }
-            }
+            };
+
+            dumpField(_data->_dumpRho, "rho", _data->_rhoBuf);
+            dumpField(_data->_dumpVx, "vx", _data->_vxBuf);
+            dumpField(_data->_dumpVy, "vy", _data->_vyBuf);
+            dumpField(_data->_dumpVz, "vz", _data->_vzBuf);
         };
 
         auto haloBlockingL1L2PullRun = [dumpRes, this]()->void

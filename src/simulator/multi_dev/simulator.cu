@@ -1,5 +1,6 @@
 #include <format>
 #include <vector>
+#include <filesystem>
 #include "vec3.hpp"
 #include <ostream>
 #include "CLI11.hpp"
@@ -40,6 +41,11 @@ namespace gf::simulator::multi_dev
             gf::basic::Vec3<std::uint32_t> _devDim;
             gf::basic::Vec3<std::uint32_t> _blockDim;
             gf::basic::Vec3<std::uint32_t> _gridDim;
+            std::string _dumpFolder = "data/multi_dev_output";
+            bool _dumpRho = false;
+            bool _dumpVx = false;
+            bool _dumpVy = false;
+            bool _dumpVz = false;
             std::vector<SingleDevData>     _singleDevData;
         public:
             Data(int argc, char** argv)
@@ -57,6 +63,12 @@ namespace gf::simulator::multi_dev
                     ->default_val(std::array<std::uint32_t,3>{32, 8, 4});
                 app.add_option("--gridDim", _gridDim.data, "Dimension of grids per kernel.")
                     ->default_val(std::array<std::uint32_t,3>{16, 32, 64});
+                app.add_option("--dumpFolder", _dumpFolder, "Folder to store dumped fields.")
+                    ->default_val("data/multi_dev_output");
+                app.add_flag("--dumpRho", _dumpRho, "Dump density every `dstep` steps.");
+                app.add_flag("--dumpVx", _dumpVx, "Dump vx every `dstep` steps.");
+                app.add_flag("--dumpVy", _dumpVy, "Dump vy every `dstep` steps.");
+                app.add_flag("--dumpVz", _dumpVz, "Dump vz every `dstep` steps.");
                 try
                 {
                     app.parse(argc, argv);
@@ -202,7 +214,45 @@ namespace gf::simulator::multi_dev
 
     void Simulator::run()
     {
-        auto simulateLoop = [this](std::uint32_t devIdx, gf::basic::Logger& logger, std::barrier<>& barrier)
+        auto dumpRes = [this](std::uint32_t devIdx,
+                              std::uint32_t stepBnd,
+                              std::int32_t devIdxX,
+                              std::int32_t devIdxY,
+                              std::int32_t devIdxZ)
+        {
+            if(!(_data->_dumpRho || _data->_dumpVx || _data->_dumpVy || _data->_dumpVz)) return;
+
+            const auto dumpFolder = std::filesystem::path{_data->_dumpFolder};
+            std::filesystem::create_directories(dumpFolder);
+
+            const auto nbytes = _data->getDomainSize()*sizeof(real_t);
+            auto hostBuf = std::make_unique<char[]>(nbytes);
+            const auto& singleDevData = _data->_singleDevData[devIdx];
+
+            auto dumpField = [&](bool enabled, std::string_view prefix, const void *devicePtr)
+            {
+                if(!enabled) return;
+                
+                const auto filePath = dumpFolder / std::format("{}_{}_dev_{}_{}_{}.dat", prefix, stepBnd, devIdxX, devIdxY, devIdxZ);
+                
+                if(std::ofstream f(filePath, std::ios::binary); f)
+                {
+                    CU_CHECK(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyKind::cudaMemcpyDefault));
+                    f.write(hostBuf.get(), nbytes);
+                }
+                else
+                {
+                    throw std::runtime_error(std::format("Could not open the file: {}.\n", filePath.string()));
+                }
+            };
+
+            dumpField(_data->_dumpRho, "rho", singleDevData.rhoBuf);
+            dumpField(_data->_dumpVx,  "vx",  singleDevData.vxBuf);
+            dumpField(_data->_dumpVy,  "vy",  singleDevData.vyBuf);
+            dumpField(_data->_dumpVz,  "vz",  singleDevData.vzBuf);
+        };
+
+        auto simulateLoop = [this, dumpRes](std::uint32_t devIdx, gf::basic::Logger& logger, std::barrier<>& barrier)
         {
             const auto devDim = _data->_devDim;
             KernelParam<27> evenParam;
@@ -267,6 +317,8 @@ namespace gf::simulator::multi_dev
             CU_CHECK(cudaEventElapsedTime(&ms, singleDevData.start, singleDevData.end));
             const float mlups = ((_data->getDomainSize())*1e-6f) / (ms/1000) * (stepBnd - _data->_step);
             logger.info(std::format("speed: {:.4f} (MLUPS)", mlups));
+
+            dumpRes(devIdx, stepBnd, devIdxX, devIdxY, devIdxZ);
         };
 
         while(_data->_step < _data->_nStep)
