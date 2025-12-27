@@ -25,17 +25,9 @@ namespace gf::basic
         public:
             Logger(std::string name, std::ostream& os = std::cout) : _name(std::move(name)), _os(os) {}
 
-            inline void logInfo(std::string msg, const std::source_location& loc) { _log(Level::INFO, std::move(msg), loc); }
-
-            inline void logDebug(std::string msg, const std::source_location& loc) { _log(Level::DEBUG, std::move(msg), loc); }
-
-            inline void logWarning(std::string msg, const std::source_location& loc) { _log(Level::WARNING, std::move(msg), loc); }
-
-            inline void logError(std::string msg, const std::source_location& loc) { _log(Level::ERROR, std::move(msg), loc); }
+            inline void info(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::INFO, std::move(msg), loc); }
+            inline void debug(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::DEBUG, std::move(msg), loc); }
+            inline void warning(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::WARNING, std::move(msg), loc); }
+            inline void error(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::ERROR, std::move(msg), loc); }
     };
 }
-
-#define LOG_INFO(logger, msg)       logger.logInfo(msg, std::source_location::current())
-#define LOG_DEBUG(logger, msg)      logger.logDebug(msg, std::source_location::current())
-#define LOG_WARNING(logger, msg)    logger.logWarning(msg, std::source_location::current())
-#define LOG_ERROR(logger, msg)      logger.logError(msg, std::source_location::current())

@@ -143,7 +143,7 @@ namespace gf::simulator::multi_dev
                 }
             }
 
-            LOG_INFO(logger, "Initialize cuda environment successfully!");
+            logger.info("Initialize cuda environment successfully!");
 
             barrier.arrive_and_wait();
 
@@ -160,7 +160,7 @@ namespace gf::simulator::multi_dev
             CU_CHECK(cudaEventCreate(&singleDevData.start));
             CU_CHECK(cudaEventCreate(&singleDevData.end));
 
-            LOG_INFO(logger, "Allocate device memory successfully!");
+            logger.info("Allocate device memory successfully!");
 
             barrier.arrive_and_wait();
 
@@ -192,7 +192,7 @@ namespace gf::simulator::multi_dev
 
             CU_CHECK(cudaStreamSynchronize(singleDevData.stream));
 
-            LOG_INFO(logger, "Set device data successfully!");
+            logger.info("Set device data successfully!");
         };
 
 
@@ -266,7 +266,7 @@ namespace gf::simulator::multi_dev
             CU_CHECK(cudaEventSynchronize(singleDevData.end));
             CU_CHECK(cudaEventElapsedTime(&ms, singleDevData.start, singleDevData.end));
             const float mlups = ((_data->getDomainSize())*1e-6f) / (ms/1000) * (stepBnd - _data->_step);
-            LOG_INFO(logger, std::format("speed: {:.4f} (MLUPS)", mlups));
+            logger.info(std::format("speed: {:.4f} (MLUPS)", mlups));
         };
 
         while(_data->_step < _data->_nStep)
@@ -300,7 +300,7 @@ namespace gf::simulator::multi_dev
             singleDevData.rhoBuf = nullptr;
             CU_CHECK(cudaFree(singleDevData.flagBuf));
             singleDevData.flagBuf = nullptr;
-            LOG_INFO(logger, "Deallocate device memory successfully!");
+            logger.info("Deallocate device memory successfully!");
         };
 
         _pool.addTask(deinitDevData);

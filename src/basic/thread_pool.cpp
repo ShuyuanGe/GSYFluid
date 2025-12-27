@@ -29,7 +29,7 @@ namespace gf::basic
             }
             catch(const std::exception& e)
             {
-                LOG_ERROR(logger, e.what());
+                logger.error(e.what());
             }
 
             _workerLoopBarrier.arrive_and_wait();
@@ -43,7 +43,7 @@ namespace gf::basic
 
             _workerLoopBarrier.arrive_and_wait();
         }
-        LOG_INFO(logger, "Exit successfully!");
+        logger.info("Exit successfully!");
     }
 
     ThreadPool::ThreadPool(std::uint32_t numWorker) : 
