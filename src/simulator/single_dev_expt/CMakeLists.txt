@@ -11,3 +11,11 @@ target_compile_options(
     PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v -lineinfo>
 )
+
+# Enable CUDA separable compilation (-rdc=true), so __global__ template instantiations
+# that are declared in .cuh files can be defined in .cu files without triggering warning #20280-D.
+set_target_properties(
+    single_dev_expt 
+    PROPERTIES 
+    CUDA_SEPARABLE_COMPILATION ON
+)
