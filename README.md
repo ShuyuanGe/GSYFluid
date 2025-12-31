@@ -65,7 +65,7 @@ The reference pull-stream run reaches **3805 MLUPS** and the tuned setup hits **
 
 ##### CLI reference
 
-`multi_dev_main` launches a synchronous decomposition across `devDim.x * devDim.y * devDim.z` GPUs, assigns a tile of size `blkDim * gridDim` to each device, and optionally dumps per-field sub-volumes every `dstep` steps. Unlike `single_dev_expt_main`, it does **not** expose a `--domainDim` override; the global domain is fixed by `blkDim * gridDim * devDim`. It also does **not** accept `--initStateFolder` inputs yet, so the multi-GPU path currently seeds domain data internally rather than consuming obstacle/boundary masks authored via [data/state_initialization.ipynb](data/state_initialization.ipynb).
+`multi_dev_main` launches a synchronous decomposition across `devDim.x * devDim.y * devDim.z` GPUs, assigns a tile of size `blkDim * gridDim` to each device, and optionally dumps per-field sub-volumes every `dstep` steps. Unlike `single_dev_expt_main`, it does **not** expose a `--domainDim` override; the global domain is fixed by `blkDim * gridDim * devDim`. It also does **not** accept `--initStateFolder` inputs yet, so the multi-GPU path currently seeds domain data internally rather than consuming obstacle/boundary masks authored via [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb).
 
 | Flag | Purpose | Default |
 | --- | --- | --- |
@@ -96,7 +96,14 @@ e.g. under the above configuration:
 
 Because of this multiplicative relationship, there is no `--domainDim` argument on the multi-GPU binary, so domain customization must happen via the block/grid/device triplets for now.
 
-The executable prints the per-device and global domain sizes, enables peer-to-peer links for adjacent ranks, and emits tiles that can be reassembled with the helper cells in [data/dump_visualization.ipynb](data/dump_visualization.ipynb).
+The executable prints the per-device and global domain sizes, enables peer-to-peer links for adjacent ranks, and emits tiles that can be reassembled with the helper cells in [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb).
+
+### Domain Decomposition
+
+Interactive visualization tools are provided to explore domain decomposition and halo exchange patterns.
+
+- **Single Device**: [visualization/single_dev_blocking.html](visualization/single_dev_blocking.html) visualizes the block-level decomposition, including valid regions and halo zones for a single GPU.
+- **Multi-Device**: [visualization/multi_dev_blocking.html](visualization/multi_dev_blocking.html) visualizes the global domain decomposition across multiple GPUs, showing how the problem is partitioned.
 
 ### Workflows
 
@@ -104,7 +111,7 @@ Scenarios 1–3 cover complementary workflows: Scenario 1 stays on a single GPU,
 
 #### Scenario 1 (Single-GPU): Custom domains → snapshots → visualization
 
-1. **Author boundary/obstacle masks.** Use [data/state_initialization.ipynb](data/state_initialization.ipynb) to run helpers such as `leftInletRightOutletCubeObs`. Each run writes `flag.dat`, `vx.dat`, and related seeds into a folder like `data/left_inlet_right_outlet_cube_obs_288_272_280_init_state`.
+1. **Author boundary/obstacle masks.** Use [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb) to run helpers such as `leftInletRightOutletCubeObs`. Each run writes `flag.dat`, `vx.dat`, and related seeds into a folder like `data/left_inlet_right_outlet_cube_obs_288_272_280_init_state`.
 2. **Simulate with dumps enabled.** Point `single_dev_expt_main` at the generated folder via `--initStateFolder`, choose a dump target via `--dumpFolder`, and enable any subset of `--dumpRho/--dumpVx/--dumpVy/--dumpVz`. Snapshot frequency follows `--dstep`, so the example command above emits frames at steps 200, 400, …
 
 ```bash
@@ -124,13 +131,13 @@ Scenarios 1–3 cover complementary workflows: Scenario 1 stays on a single GPU,
     --dumpRho --dumpVx --dumpVy --dumpVz
 ```
 
-3. **Visualize results.** Open [data/dump_visualization.ipynb](data/dump_visualization.ipynb) and run **Single-GPU Dump**. Set `Nx`, `Ny`, `Nz`, and `outputFolder` so they match the single-device dump folder, then execute the cell to load `vx_<step>.dat`, `vy_<step>.dat`, and `vz_<step>.dat` and render the mid-plane magnitude heatmaps.
+3. **Visualize results.** Open [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb) and run **Single-GPU Dump**. Set `Nx`, `Ny`, `Nz`, and `outputFolder` so they match the single-device dump folder, then execute the cell to load `vx_<step>.dat`, `vy_<step>.dat`, and `vz_<step>.dat` and render the mid-plane magnitude heatmaps.
 
 This pipeline keeps everything binary-compatible with the CUDA kernels (no intermediate conversions) and lets you iterate quickly on inlet speeds, obstacle geometries, or dumping cadence.
 
 #### Scenario 2 (Multi-GPU): decomposition → tiled dumps → visualization
 
-1. **Choose the device grid.** Decide how many GPUs participate along each axis via `--devDim [dx,dy,dz]`, then size `--blkDim`/`--gridDim` so that each rank owns a reasonable tile. The aggregate domain equals `(blkDim * gridDim) ⊙ devDim`, so validate it matches your target problem size. (Custom initial states from `data/state_initialization.ipynb` are not wired up here yet, so geometry tweaks must wait for future multi-GPU support.)
+1. **Choose the device grid.** Decide how many GPUs participate along each axis via `--devDim [dx,dy,dz]`, then size `--blkDim`/`--gridDim` so that each rank owns a reasonable tile. The aggregate domain equals `(blkDim * gridDim) ⊙ devDim`, so validate it matches your target problem size. (Custom initial states from `scripts/state_initialization.ipynb` are not wired up here yet, so geometry tweaks must wait for future multi-GPU support.)
 2. **Launch `multi_dev_main`.** Each device writes binary tiles named `frame_<step>_dev_{ix}_{iy}_{iz}` into `--dumpFolder`. Use a command such as:
 
 ```bash
@@ -146,7 +153,7 @@ This pipeline keeps everything binary-compatible with the CUDA kernels (no inter
 ```
     
 
-3. **Visualize results.** Open [data/dump_visualization.ipynb](data/dump_visualization.ipynb) and run **Multi-GPU Dump**. Set the domain shape (`Nx`, `Ny`, `Nz`), the device grid tuple (`nx`, `ny`, `nz`), and `outputFolder` to mirror your run, then execute the stitching cell to reconstruct a full field. Then plot the slices or magnitude trends.
+3. **Visualize results.** Open [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb) and run **Multi-GPU Dump**. Set the domain shape (`Nx`, `Ny`, `Nz`), the device grid tuple (`nx`, `ny`, `nz`), and `outputFolder` to mirror your run, then execute the stitching cell to reconstruct a full field. Then plot the slices or magnitude trends.
 
 #### Scenario 3 (Single-GPU): Blocking experiments → curve fitting
 

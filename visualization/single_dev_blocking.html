@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single-Device Blocking Visualization</title>
+    <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #sidebar {
+            width: 300px;
+            min-width: 300px;
+            flex-shrink: 0;
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        #main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        #plot {
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+        }
+        .control-group {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .control-group h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 10px;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #555;
+        }
+        input[type=range] {
+            width: 100%;
+        }
+        #stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .stat-line {
+            margin-bottom: 4px;
+        }
+        .stat-label {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="control-group">
+        <h3>Temporal Blocking</h3>
+        <div class="slider-container">
+            <div class="slider-label"><span>I (Inner Loop)</span><span id="val-I">1</span></div>
+            <input type="range" id="input-I" min="1" max="10" step="1" value="1">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h3>Block Dimensions (Valid S)</h3>
+        <div class="slider-container">
+            <div class="slider-label"><span>Sx</span><span id="val-Sx">40</span></div>
+            <input type="range" id="input-Sx" min="4" max="100" step="4" value="40">
+        </div>
+        <div class="slider-container">
+            <div class="slider-label"><span>Sy</span><span id="val-Sy">40</span></div>
+            <input type="range" id="input-Sy" min="4" max="100" step="4" value="40">
+        </div>
+        <div class="slider-container">
+            <div class="slider-label"><span>Sz</span><span id="val-Sz">40</span></div>
+            <input type="range" id="input-Sz" min="4" max="100" step="4" value="40">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h3>Grid Dimensions (n)</h3>
+        <div class="slider-container">
+            <div class="slider-label"><span>nx</span><span id="val-nx">2</span></div>
+            <input type="range" id="input-nx" min="1" max="5" step="1" value="2">
+        </div>
+        <div class="slider-container">
+            <div class="slider-label"><span>ny</span><span id="val-ny">2</span></div>
+            <input type="range" id="input-ny" min="1" max="5" step="1" value="2">
+        </div>
+        <div class="slider-container">
+            <div class="slider-label"><span>nz</span><span id="val-nz">1</span></div>
+            <input type="range" id="input-nz" min="1" max="5" step="1" value="1">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h3>View Options</h3>
+        <div class="slider-container">
+            <label style="font-size: 12px; color: #555; display: flex; align-items: center;">
+                <input type="checkbox" id="input-halo" style="width: auto; margin-right: 8px;">
+                Highlight Halo
+            </label>
+        </div>
+    </div>
+    
+    <div style="font-size: 11px; color: #666; line-height: 1.4;">
+        <p><strong>Legend:</strong></p>
+        <p><span style="color: blue; font-weight: bold;">---</span> Valid Region (S)</p>
+        <p><span style="color: red; font-weight: bold;">---</span> Total Region (B)</p>
+        <p>Hover over blocks to see details.</p>
+    </div>
+</div>
+
+<div id="main">
+    <div id="stats">
+        <div class="stat-line"><span class="stat-label">Halo Thickness:</span> <span id="stat-halo">0</span></div>
+        <div class="stat-line"><span class="stat-label">Total Valid Domain (N):</span> <span id="stat-N">[0, 0, 0]</span></div>
+        <div class="stat-line"><span class="stat-label">Theoretical Efficiency:</span> <span id="stat-phi">0.00%</span></div>
+    </div>
+    <div id="plot"></div>
+</div>
+
+<script>
+    // Helper functions
+    function getCubeWireframe(x0, y0, z0, x1, y1, z1) {
+        const x = [x0, x1, x1, x0, x0, null, x0, x1, x1, x0, x0, null, x0, x0, null, x1, x1, null, x1, x1, null, x0, x0];
+        const y = [y0, y0, y1, y1, y0, null, y0, y0, y1, y1, y0, null, y0, y0, null, y0, y0, null, y1, y1, null, y1, y1];
+        const z = [z0, z0, z0, z0, z0, null, z1, z1, z1, z1, z1, null, z0, z1, null, z0, z1, null, z0, z1, null, z0, z1];
+        return {x, y, z};
+    }
+
+    function getCubeMesh(x0, y0, z0, x1, y1, z1) {
+        const x = [x0, x1, x1, x0, x0, x1, x1, x0];
+        const y = [y0, y0, y1, y1, y0, y0, y1, y1];
+        const z = [z0, z0, z0, z0, z1, z1, z1, z1];
+        const i = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2];
+        const j = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3];
+        const k = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6];
+        return {x, y, z, i, j, k};
+    }
+
+    // State
+    const state = {
+        I: 1,
+        Sx: 40, Sy: 40, Sz: 40,
+        nx: 2, ny: 2, nz: 1
+    };
+
+    // Elements
+    const inputs = {
+        I: document.getElementById('input-I'),
+        Sx: document.getElementById('input-Sx'),
+        Sy: document.getElementById('input-Sy'),
+        Sz: document.getElementById('input-Sz'),
+        nx: document.getElementById('input-nx'),
+        ny: document.getElementById('input-ny'),
+        nz: document.getElementById('input-nz')
+    };
+    
+    const haloInput = document.getElementById('input-halo');
+    
+    const labels = {
+        I: document.getElementById('val-I'),
+        Sx: document.getElementById('val-Sx'),
+        Sy: document.getElementById('val-Sy'),
+        Sz: document.getElementById('val-Sz'),
+        nx: document.getElementById('val-nx'),
+        ny: document.getElementById('val-ny'),
+        nz: document.getElementById('val-nz')
+    };
+
+    const stats = {
+        halo: document.getElementById('stat-halo'),
+        N: document.getElementById('stat-N'),
+        phi: document.getElementById('stat-phi')
+    };
+
+    // Update function
+    function update() {
+        // Read inputs
+        for (const key in inputs) {
+            state[key] = parseInt(inputs[key].value);
+            labels[key].textContent = state[key];
+        }
+
+        const { I, Sx, Sy, Sz, nx, ny, nz } = state;
+        const halo = I - 1;
+        const S = [Sx, Sy, Sz];
+        const n = [nx, ny, nz];
+        const N = [Sx * nx, Sy * ny, Sz * nz];
+        const B = [Sx + 2 * halo, Sy + 2 * halo, Sz + 2 * halo];
+
+        // Efficiency Calculation
+        let phi = 1.0;
+        for (let d = 0; d < 3; d++) {
+            const nd = n[d];
+            const Bd = B[d];
+            if (nd === 1) {
+                phi *= 1.0;
+            } else {
+                const term = (1 - 2 / nd) * (1 - 2 * halo / Bd) + (2 / nd) * (1 - halo / Bd);
+                phi *= term;
+            }
+        }
+
+        // Update Stats
+        stats.halo.textContent = halo;
+        stats.N.textContent = `[${N.join(', ')}]`;
+        stats.phi.textContent = (phi * 100).toFixed(2) + '%';
+        const showHalo = haloInput.checked;
+
+        // Generate Traces
+        const traces = [];
+
+        // 1. Valid Region Wireframes (Blue Dashed) - Combined
+        const validX = [], validY = [], validZ = [];
+        
+        // 2. Total Region Wireframes (Red Solid) - Combined
+        const totalX = [], totalY = [], totalZ = [];
+
+        // 3. Meshes (Transparent Red) - Individual for hover
+        const meshTraces = [];
+
+        for (let z = 0; z < nz; z++) {
+            for (let y = 0; y < ny; y++) {
+                for (let x = 0; x < nx; x++) {
+                    // Valid Region
+                    const vx0 = x * Sx;
+                    const vy0 = y * Sy;
+                    const vz0 = z * Sz;
+                    const vx1 = vx0 + Sx;
+                    const vy1 = vy0 + Sy;
+                    const vz1 = vz0 + Sz;
+
+                    const vw = getCubeWireframe(vx0, vy0, vz0, vx1, vy1, vz1);
+                    validX.push(...vw.x, null);
+                    validY.push(...vw.y, null);
+                    validZ.push(...vw.z, null);
+
+                    // Total Region
+                    const hx0 = (x > 0) ? vx0 - halo : vx0;
+                    const hy0 = (y > 0) ? vy0 - halo : vy0;
+                    const hz0 = (z > 0) ? vz0 - halo : vz0;
+                    
+                    const hx1 = (x < nx - 1) ? vx1 + halo : vx1;
+                    const hy1 = (y < ny - 1) ? vy1 + halo : vy1;
+                    const hz1 = (z < nz - 1) ? vz1 + halo : vz1;
+
+                    const hw = getCubeWireframe(hx0, hy0, hz0, hx1, hy1, hz1);
+                    totalX.push(...hw.x, null);
+                    totalY.push(...hw.y, null);
+                    totalZ.push(...hw.z, null);
+
+                    // Mesh
+                    let m;
+                    if (showHalo) {
+                        // Composite mesh for halos
+                        const mesh = { x: [], y: [], z: [], i: [], j: [], k: [] };
+                        
+                        const addBox = (bx0, by0, bz0, bx1, by1, bz1) => {
+                            if (bx1 <= bx0 || by1 <= by0 || bz1 <= bz0) return;
+                            const offset = mesh.x.length;
+                            const b = getCubeMesh(bx0, by0, bz0, bx1, by1, bz1);
+                            mesh.x.push(...b.x);
+                            mesh.y.push(...b.y);
+                            mesh.z.push(...b.z);
+                            mesh.i.push(...b.i.map(idx => idx + offset));
+                            mesh.j.push(...b.j.map(idx => idx + offset));
+                            mesh.k.push(...b.k.map(idx => idx + offset));
+                        };
+
+                        // 1. X-Slabs (Full Y, Full Z)
+                        if (x > 0) addBox(hx0, hy0, hz0, vx0, hy1, hz1); // Left
+                        if (x < nx - 1) addBox(vx1, hy0, hz0, hx1, hy1, hz1); // Right
+
+                        // 2. Y-Slabs (Valid X, Full Z)
+                        if (y > 0) addBox(vx0, hy0, hz0, vx1, vy0, hz1); // Bottom
+                        if (y < ny - 1) addBox(vx0, vy1, hz0, vx1, hy1, hz1); // Top
+
+                        // 3. Z-Slabs (Valid X, Valid Y)
+                        if (z > 0) addBox(vx0, vy0, hz0, vx1, vy1, vz0); // Back
+                        if (z < nz - 1) addBox(vx0, vy0, vz1, vx1, vy1, hz1); // Front
+                        
+                        m = mesh;
+                    } else {
+                        m = getCubeMesh(hx0, hy0, hz0, hx1, hy1, hz1);
+                    }
+
+                    meshTraces.push({
+                        type: 'mesh3d',
+                        x: m.x, y: m.y, z: m.z,
+                        i: m.i, j: m.j, k: m.k,
+                        opacity: showHalo ? 0.2 : 0.04,
+                        color: showHalo ? 'orange' : 'red',
+                        hoverinfo: 'text',
+                        text: `Block (${x},${y},${z})<br>Valid: [${vx0}:${vx1}, ${vy0}:${vy1}, ${vz0}:${vz1}]<br>Total: [${hx0}:${hx1}, ${hy0}:${hy1}, ${hz0}:${hz1}]`,
+                        legendgroup: 'blocks'
+                    });
+                }
+            }
+        }
+
+        traces.push({
+            type: 'scatter3d',
+            mode: 'lines',
+            x: validX, y: validY, z: validZ,
+            line: { color: 'blue', width: 3, dash: 'dot' },
+            name: 'Valid Region (S)',
+            hoverinfo: 'skip'
+        });
+
+        traces.push({
+            type: 'scatter3d',
+            mode: 'lines',
+            x: totalX, y: totalY, z: totalZ,
+            line: { color: 'red', width: 2 },
+            name: 'Total Region (B)',
+            hoverinfo: 'skip'
+        });
+
+        traces.push(...meshTraces);
+
+        const layout = {
+            scene: {
+                xaxis: { title: 'X' },
+                yaxis: { title: 'Y' },
+                zaxis: { title: 'Z' },
+                aspectmode: 'data'
+            },
+            margin: { l: 0, r: 0, b: 0, t: 0 },
+            showlegend: false,
+            uirevision: 'true' // Keep camera view
+        };
+
+        Plotly.react('plot', traces, layout);
+    }
+
+    // Initialize
+    for (const key in inputs) {
+        inputs[key].addEventListener('input', update);
+    }
+    
+    haloInput.addEventListener('change', update);
+    // Initial render
+    update();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+        Plotly.Plots.resize('plot');
+    });
+
+</script>
+
+</body>
+</html>
