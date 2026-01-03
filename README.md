@@ -102,12 +102,12 @@ The executable prints the per-device and global domain sizes, enables peer-to-pe
 
 Interactive visualization tools are provided to explore domain decomposition and halo exchange patterns.
 
-- **Single Device**: [visualization/single_dev_blocking.html](visualization/single_dev_blocking.html) visualizes the block-level decomposition, including valid regions and halo zones for a single GPU.
-- **Multi-Device**: [visualization/multi_dev_blocking.html](visualization/multi_dev_blocking.html) visualizes the global domain decomposition across multiple GPUs, showing how the problem is partitioned.
+- **Single Device**: [visualization/single_dev_blocking.html](https://raw.githack.com/ShuyuanGe/cuLBM/master/visualization/single_dev_blocking.html) visualizes the block-level decomposition, including valid regions and halo zones for a single GPU.
+- **Multi-Device**: [visualization/multi_dev_blocking.html](https://raw.githack.com/ShuyuanGe/cuLBM/master/visualization/multi_dev_blocking.html) visualizes the global domain decomposition across multiple GPUs, showing how the problem is partitioned.
 
 ### Workflows
 
-Scenarios 1–3 cover complementary workflows: Scenario 1 stays on a single GPU, Scenario 2 extends runs across multiple GPUs, and Scenario 3 sweeps single-GPU parameter spaces for tuning.
+Scenarios 1–4 cover complementary workflows: Scenario 1 stays on a single GPU for custom domains and visualization, Scenario 2 extends runs across multiple GPUs with tiled dumps, Scenario 3 sweeps single-GPU parameter spaces for tuning, and Scenario 4 benchmarks weak scaling efficiency across multiple devices.
 
 #### Scenario 1 (Single-GPU): Custom domains → snapshots → visualization
 
